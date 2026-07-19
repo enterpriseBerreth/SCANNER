@@ -37,6 +37,8 @@ At 8:00 PM `America/Denver` time (which follows Mountain daylight/standard time 
 
 SCANNER now requires a 79+ score *and* passes hard on-chain checks: no active mint/freeze authority, a standard SPL token program, top-holder concentration at or below the configured maximum, non-zero supply, and a viable aggregator quote below the configured impact cap. It fails closed when validation is unavailable. Post endpoints accept a bearer token when `CONTROL_API_KEY` is configured. Daily-loss and maximum-concurrent-position circuit breakers are enforced in paper mode.
 
+`AUTO_PAPER_TRADE=true` is enabled by default: a token that passes all of the above receives one bounded paper entry, up to `MAX_OPEN_POSITIONS`. It never re-enters the same token, and it never signs or broadcasts a blockchain transaction.
+
 This is still not a live trader: it has no wallet key, transaction signer, or swap-submission code. Those systems need a separate security review and explicit authorization.
 
 ## Quick start

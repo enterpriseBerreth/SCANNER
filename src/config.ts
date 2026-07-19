@@ -16,6 +16,7 @@ const env = z.object({
   SOLANA_RPC_URL: z.string().url().default('https://api.mainnet-beta.solana.com'), JUPITER_API_KEY: z.string().optional(),
   MAX_OPEN_POSITIONS: z.coerce.number().int().min(1).max(20).default(3), MAX_TOP_HOLDER_PERCENT: z.coerce.number().min(1).max(100).default(25),
   MAX_QUOTE_PRICE_IMPACT_PERCENT: z.coerce.number().min(.1).max(100).default(15), CONTROL_API_KEY: z.string().min(16).optional(),
+  AUTO_PAPER_TRADE: z.enum(['true', 'false']).default('true').transform(value => value === 'true'),
   TELEGRAM_BOT_TOKEN: z.string().optional(), TELEGRAM_CHAT_ID: z.string().optional()
 }).parse(process.env);
 export const config = env;

@@ -48,6 +48,14 @@ export class ScannerEngine {
         if (Number.isFinite(price) && price > 0) { const exit = this.evaluateExit(position, price); if (exit) this.closePaperPosition(position, price, exit); }
       }
       for (const candidate of this.candidates) if (!this.alerted.has(candidate.pairAddress)) { this.alerted.add(candidate.pairAddress); await notify(candidate); }
+      if (config.AUTO_PAPER_TRADE) {
+        for (const candidate of this.candidates) {
+          // One paper entry per token preserves the auditability of the strategy and prevents churn/re-entry loops.
+          if (this.paper.fills.some(fill => fill.side === 'BUY' && fill.token === candidate.baseToken.address)) continue;
+          if (this.positions.length >= config.MAX_OPEN_POSITIONS) break;
+          try { await this.openPaperPosition(candidate); } catch (error) { console.warn(`Paper entry skipped for ${candidate.baseToken.symbol}:`, error instanceof Error ? error.message : error); }
+        }
+      }
       return this.candidates;
     } catch (error) { this.lastError = error instanceof Error ? error.message : String(error); console.error('Scan failed:', this.lastError); return this.candidates; }
   }
