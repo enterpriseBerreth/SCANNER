@@ -15,4 +15,5 @@ app.post('/api/paper-positions/:pairAddress', (req, res) => {
   try { return res.status(201).json(engine.openPaperPosition(candidate)); } catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid position' }); }
 });
 engine.start();
-app.listen(config.PORT, () => console.log(`SCANNER listening on ${config.PORT} in ${config.EXECUTION_MODE} mode`));
+// Explicitly bind all interfaces: cloud platforms proxy traffic into the container.
+app.listen(config.PORT, '0.0.0.0', () => console.log(`SCANNER listening on ${config.PORT} in ${config.EXECUTION_MODE} mode`));
