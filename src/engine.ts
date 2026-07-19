@@ -1,6 +1,6 @@
 import { config } from './config.js';
 import { latestSolanaPairs } from './dexscreener.js';
-import { notify } from './notifier.js';
+import { notify, notifyTrade } from './notifier.js';
 import { PaperBroker } from './paper.js';
 import { assess } from './scoring.js';
 import type { Candidate, Position } from './types.js';
@@ -28,12 +28,12 @@ export class ScannerEngine {
   start() { void this.scan(); this.timer = setInterval(() => void this.scan(), config.SCAN_INTERVAL_SECONDS * 1000); }
   stop() { if (this.timer) clearInterval(this.timer); }
   // 9 position sizing/daily loss cap and 10 automated exits are enforced in paper mode below.
-  openPaperPosition(candidate: Candidate, amountUsd = config.MAX_POSITION_USD): Position {
+  async openPaperPosition(candidate: Candidate, amountUsd = config.MAX_POSITION_USD): Promise<Position> {
     if (this.positions.some(position => position.token === candidate.baseToken.address)) throw new Error('Position already exists');
     const position = this.paper.buy(candidate.baseToken.address, candidate.baseToken.symbol, Number(candidate.priceUsd), amountUsd, candidate.url);
-    this.positions.push(position); return position;
+    this.positions.push(position); await notifyTrade(this.paper.fills[0], position); return position;
   }
-  closePaperPosition(position: Position, price: number, reason = 'manual sell') { const fill = this.paper.sell(position, price, reason); this.positions = this.positions.filter(item => item.token !== position.token); return fill; }
+  async closePaperPosition(position: Position, price: number, reason = 'manual sell') { const fill = this.paper.sell(position, price, reason); this.positions = this.positions.filter(item => item.token !== position.token); await notifyTrade(fill, position); return fill; }
   evaluateExit(position: Position, price: number): string | undefined {
     position.highPrice = Math.max(position.highPrice, price); const pnl = (price / position.entryPrice - 1) * 100;
     if (pnl <= -config.STOP_LOSS_PERCENT) return 'hard stop-loss';

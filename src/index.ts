@@ -10,16 +10,16 @@ app.get('/api/status', (_req, res) => res.json({ mode: config.EXECUTION_MODE, la
 app.get('/api/candidates', (_req, res) => res.json(engine.candidates));
 app.get('/api/paper-ledger', (_req, res) => res.json({ cashUsd: engine.paper.cashUsd, positions: engine.positions, fills: engine.paper.fills }));
 app.post('/api/scan', async (_req, res) => res.json(await engine.scan()));
-app.post('/api/paper-positions/:pairAddress', (req, res) => {
+app.post('/api/paper-positions/:pairAddress', async (req, res) => {
   const candidate = engine.candidates.find(item => item.pairAddress === req.params.pairAddress);
   if (!candidate) return res.status(404).json({ error: 'Candidate not found; scan first.' });
-  try { return res.status(201).json(engine.openPaperPosition(candidate, Number(req.body?.amountUsd ?? config.MAX_POSITION_USD))); } catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid position' }); }
+  try { return res.status(201).json(await engine.openPaperPosition(candidate, Number(req.body?.amountUsd ?? config.MAX_POSITION_USD))); } catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid position' }); }
 });
-app.post('/api/paper-positions/:pairAddress/sell', (req, res) => {
+app.post('/api/paper-positions/:pairAddress/sell', async (req, res) => {
   const position = engine.positions.find(item => item.token === req.params.pairAddress || item.token === req.body?.token);
   const candidate = engine.candidates.find(item => item.baseToken.address === position?.token); const price = Number(candidate?.priceUsd);
   if (!position || !Number.isFinite(price)) return res.status(404).json({ error: 'Open position or current price not found.' });
-  return res.json(engine.closePaperPosition(position, price));
+  return res.json(await engine.closePaperPosition(position, price));
 });
 engine.start();
 // Explicitly bind all interfaces: cloud platforms proxy traffic into the container.
