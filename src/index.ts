@@ -21,6 +21,6 @@ app.post('/api/paper-positions/:pairAddress/sell', async (req, res) => {
   if (!position || !Number.isFinite(price)) return res.status(404).json({ error: 'Open position or current price not found.' });
   return res.json(await engine.closePaperPosition(position, price));
 });
-engine.start();
+void engine.start();
 // Explicitly bind all interfaces: cloud platforms proxy traffic into the container.
 app.listen(config.PORT, '0.0.0.0', () => console.log(`SCANNER listening on ${config.PORT} in ${config.EXECUTION_MODE} mode`));
