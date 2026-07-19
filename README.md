@@ -2,6 +2,8 @@
 
 SCANNER is a Solana new-token momentum **scanner and paper-trading bot**. It finds newly profiled Solana pairs, filters for quality and momentum, and sends evidence-rich alerts. It does not custody keys, submit swaps, or promise profitability.
 
+The strategy prioritizes fresh pairs aged 3–240 minutes with genuine upward momentum. Older tokens can qualify only with confirmed positive 1-hour and 24-hour movement plus adequate sustained volume; they receive a lower age score than a comparable fresh launch.
+
 > Crypto assets are highly speculative. A score is a screening signal—not investment advice, a prediction, or a guarantee. Start with paper trading and independently validate every token and transaction.
 
 ## The 10 practices implemented
