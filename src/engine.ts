@@ -1,7 +1,8 @@
 import { config } from './config.js';
 import { latestSolanaPairs, solUsdPrice } from './dexscreener.js';
 import { recentPriorityFeeLamports } from './fees.js';
-import { notify, notifyDailyReport, notifyTrade } from './notifier.js';
+import { notifyDailyReport, notifyTrade } from './notifier.js';
+import { routeQuote, SOL_MINT } from './quotes.js';
 import { PaperBroker } from './paper.js';
 import { StateStore, type StoredState } from './store.js';
 import { assess } from './scoring.js';
@@ -45,9 +46,9 @@ export class ScannerEngine {
       await this.persist();
       for (const position of [...this.positions]) {
         const pair = pairs.find(item => item.baseToken.address === position.token); const price = Number(pair?.priceUsd);
-        if (Number.isFinite(price) && price > 0) { const exit = this.evaluateExit(position, price); if (exit) this.closePaperPosition(position, price, exit); }
+        if (Number.isFinite(price) && price > 0) { const exit = this.evaluateExit(position, price); if (exit && !position.exitBlockedAt) await this.closePaperPosition(position, exit); }
       }
-      for (const candidate of this.candidates) if (!this.alerted.has(candidate.pairAddress)) { this.alerted.add(candidate.pairAddress); await notify(candidate); }
+      for (const candidate of this.candidates) this.alerted.add(candidate.pairAddress);
       if (config.AUTO_PAPER_TRADE) {
         for (const candidate of this.candidates) {
           // One paper entry per token preserves the auditability of the strategy and prevents churn/re-entry loops.
@@ -69,10 +70,20 @@ export class ScannerEngine {
     if (this.positions.length >= config.MAX_OPEN_POSITIONS) throw new Error(`Maximum ${config.MAX_OPEN_POSITIONS} concurrent positions reached`);
     const todaysLoss = this.paper.fills.filter(fill => fill.side === 'SELL' && this.localTime(new Date(fill.at)).date === this.localTime().date).reduce((sum, fill) => sum + Math.min(0, fill.realizedPnlUsd ?? 0), 0);
     if (todaysLoss <= -config.MAX_DAILY_LOSS_USD) throw new Error('Daily loss circuit breaker is active');
-    const position = this.paper.buy(candidate.baseToken.address, candidate.baseToken.symbol, Number(candidate.priceUsd), amountUsd, candidate.url);
-    this.positions.push(position); this.markDirty(); await this.persist(); await notifyTrade(this.paper.fills[0], position); return position;
+    const decimals = candidate.security?.decimals; if (decimals === undefined) throw new Error('Token decimals unavailable');
+    const solInput = Math.floor(amountUsd / this.paper.solUsd * 1e9); const quote = await routeQuote(SOL_MINT, candidate.baseToken.address, String(solInput));
+    const position = this.paper.buyQuoted(candidate.baseToken.address, candidate.baseToken.symbol, quote, decimals, candidate.url);
+    this.positions.push(position); this.markDirty(); await this.persist(); return position;
   }
-  async closePaperPosition(position: Position, price: number, reason = 'manual sell') { const fill = this.paper.sell(position, price, reason); this.positions = this.positions.filter(item => item.token !== position.token); this.markDirty(); await this.persist(); await notifyTrade(fill, position); return fill; }
+  async closePaperPosition(position: Position, reason = 'exit rule') {
+    try {
+      const quote = await routeQuote(position.token, SOL_MINT, position.tokenRawAmount); const fill = this.paper.sellQuoted(position, quote, reason);
+      this.positions = this.positions.filter(item => item.token !== position.token); this.markDirty(); await this.persist(); await notifyTrade(fill, position, this.paper.cashUsd); return fill;
+    } catch (error) {
+      position.exitBlockedAt = new Date().toISOString(); const fill = this.paper.recordBlockedExit(position, `EXIT BLOCKED: ${error instanceof Error ? error.message : 'no sell route'}`);
+      this.markDirty(); await this.persist(); return fill;
+    }
+  }
   evaluateExit(position: Position, price: number): string | undefined {
     position.highPrice = Math.max(position.highPrice, price); const pnl = (price / position.entryPrice - 1) * 100;
     if (pnl <= -config.STOP_LOSS_PERCENT) return 'hard stop-loss';

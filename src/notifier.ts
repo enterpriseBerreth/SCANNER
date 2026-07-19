@@ -15,15 +15,21 @@ export async function notify(candidate: Candidate): Promise<void> {
   await send(message);
 }
 
-export async function notifyTrade(fill: PaperFill, position?: Position): Promise<void> {
-  const pnl = fill.realizedPnlUsd ?? -(fill.totalFeesUsd);
-  const denominator = position ? position.amountUsd + position.entryFeesUsd : fill.grossUsd;
+export async function notifyTrade(fill: PaperFill, position: Position, capitalAfterSell: number): Promise<void> {
+  if (fill.side !== 'SELL' || fill.price === undefined) return;
+  const pnl = fill.realizedPnlUsd ?? 0;
+  const denominator = position.amountUsd + position.entryFeesUsd;
   const pnlPct = denominator ? pnl / denominator * 100 : 0;
+  const summary = pnl >= 0 ? `Succeeded: ${fill.reason}. Preserve the same liquidity and route-impact discipline.` : `Failed: ${fill.reason}. Improve by tightening entry momentum, reducing allowed price impact, or exiting sooner.`;
   const message = [
-    `SCANNER PAPER ${fill.side} · ${fill.symbol}`,
-    `Fill: $${fill.price.toFixed(8)} · ${fill.tokenAmount.toFixed(4)} tokens`,
-    `Gross: $${fill.grossUsd.toFixed(2)} · Fees: $${fill.totalFeesUsd.toFixed(4)} · Slippage: ${fill.slippageBps} bps`,
-    `PNL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)${fill.reason ? ` · ${fill.reason}` : ''}`
+    'SCANNER PAPER TRADE CLOSED',
+    `Token: ${fill.symbol}`,
+    `Price bought: $${position.entryPrice.toFixed(8)}`,
+    `Price sold: $${fill.price.toFixed(8)}`,
+    `PNL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+    `PNL %: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`,
+    `Capital after sell: $${capitalAfterSell.toFixed(2)}`,
+    summary
   ].join('\n');
   await send(message);
 }
