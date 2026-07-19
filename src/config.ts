@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 const env = z.object({
   PORT: z.coerce.number().default(3000), SCAN_INTERVAL_SECONDS: z.coerce.number().min(10).default(30),
-  MIN_SCORE: z.coerce.number().min(1).max(100).default(79), MIN_LIQUIDITY_USD: z.coerce.number().min(1000).default(30000),
+  MIN_SCORE: z.coerce.number().min(1).max(100).default(72), MIN_LIQUIDITY_USD: z.coerce.number().min(1000).default(30000),
   MAX_FDV_LIQUIDITY_RATIO: z.coerce.number().min(1).default(25), MAX_POSITION_USD: z.coerce.number().positive().default(50),
   MAX_DAILY_LOSS_USD: z.coerce.number().positive().default(50), TAKE_PROFIT_PERCENT: z.coerce.number().positive().default(35),
   STOP_LOSS_PERCENT: z.coerce.number().positive().default(12), TRAILING_STOP_PERCENT: z.coerce.number().positive().default(10),

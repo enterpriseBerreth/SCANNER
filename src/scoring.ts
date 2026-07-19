@@ -14,8 +14,9 @@ export function assess(pair: Pair, limits: { minLiquidity: number; maxFdvLiquidi
   if (liquidity >= limits.minLiquidity) { score += 22; reasons.push(`$${Math.round(liquidity).toLocaleString()} liquidity`); } else riskFlags.push('thin liquidity');
   if (liquidity && volume5m / liquidity >= 0.08 && volume5m / liquidity <= 2.5) { score += 18; reasons.push('healthy volume/liquidity turnover'); } else riskFlags.push('unconfirmed turnover');
   if (total >= 12 && buys / total >= 0.55 && buys / total <= 0.88) { score += 18; reasons.push('buy flow exceeds sells without being extreme'); } else riskFlags.push('weak or one-sided trade flow');
-  if (ageMinutes >= 3 && ageMinutes <= 240) { score += 15; reasons.push(`${Math.round(ageMinutes)}m fresh market age`); }
-  else if (ageMinutes > 240 && ageMinutes <= 1440) { score += 9; reasons.push('established same-day momentum candidate'); }
+  if (ageMinutes >= 0 && ageMinutes <= 10) { score += 18; reasons.push(`${Math.max(0, Math.round(ageMinutes))}m priority fresh-launch window`); }
+  else if (ageMinutes > 10 && ageMinutes <= 240) { score += 10; reasons.push(`${Math.round(ageMinutes)}m early momentum candidate`); }
+  else if (ageMinutes > 240 && ageMinutes <= 1440) { score += 7; reasons.push('established same-day momentum candidate'); }
   else if (ageMinutes > 1440 && change1h > 1 && change1h <= 25 && change24h > 0 && volume1h >= liquidity * .04) { score += 7; reasons.push('older token with sustained positive growth'); }
   else riskFlags.push('age profile lacks sustained growth confirmation');
   // 5 immediate and sustained momentum, 6 valuation sanity, 7 discovery metadata, 8 no paid-boost dependence.

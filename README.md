@@ -2,7 +2,7 @@
 
 SCANNER is a Solana new-token momentum **scanner and paper-trading bot**. It finds newly profiled Solana pairs, filters for quality and momentum, and sends evidence-rich alerts. It does not custody keys, submit swaps, or promise profitability.
 
-The strategy prioritizes fresh pairs aged 3–240 minutes with genuine upward momentum. Older tokens can qualify only with confirmed positive 1-hour and 24-hour movement plus adequate sustained volume; they receive a lower age score than a comparable fresh launch.
+The strategy gives its strongest preference to fresh pairs aged 0–10 minutes with genuine upward momentum. Tokens aged 10 minutes to four hours receive a lower early-momentum score. Older tokens can qualify only with confirmed positive 1-hour and 24-hour movement plus adequate sustained volume; they receive a lower age score than a comparable fresh launch.
 
 > Crypto assets are highly speculative. A score is a screening signal—not investment advice, a prediction, or a guarantee. Start with paper trading and independently validate every token and transaction.
 
@@ -37,7 +37,7 @@ At 8:00 PM `America/Denver` time (which follows Mountain daylight/standard time 
 
 ## Execution and security controls
 
-SCANNER now requires a 79+ score *and* passes hard on-chain checks: no active mint/freeze authority, a standard SPL token program, top-holder concentration at or below the configured maximum, non-zero supply, and a viable aggregator quote below the configured impact cap. It fails closed when validation is unavailable. Post endpoints accept a bearer token when `CONTROL_API_KEY` is configured. Daily-loss and maximum-concurrent-position circuit breakers are enforced in paper mode.
+SCANNER now requires a 72+ score *and* passes hard on-chain checks: no active mint/freeze authority, a standard SPL token program, top-holder concentration at or below the configured maximum, non-zero supply, and a viable aggregator quote below the configured impact cap. It fails closed when validation is unavailable. Post endpoints accept a bearer token when `CONTROL_API_KEY` is configured. Daily-loss and maximum-concurrent-position circuit breakers are enforced in paper mode.
 
 `AUTO_PAPER_TRADE=true` is enabled by default: a token that passes all of the above receives one bounded paper entry, up to `MAX_OPEN_POSITIONS`. It never re-enters the same token, and it never signs or broadcasts a blockchain transaction.
 
