@@ -4,8 +4,13 @@ import { ScannerEngine } from './engine.js';
 
 const app = express(); const engine = new ScannerEngine();
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.method === 'GET' || !config.CONTROL_API_KEY) return next();
+  const token = req.header('authorization')?.replace(/^Bearer\s+/i, '');
+  return token === config.CONTROL_API_KEY ? next() : res.status(401).json({ error: 'Bearer control key required.' });
+});
 app.get('/', (_req, res) => res.json({ name: 'SCANNER', mode: config.EXECUTION_MODE, disclaimer: 'Momentum alerts only; not financial advice. Execution is disabled.', endpoints: ['/health', '/api/status', '/api/candidates', '/api/scan'] }));
-app.get('/health', (_req, res) => res.status(200).json({ ok: true }));
+app.get('/health', (_req, res) => res.status(200).json({ ok: true, mode: config.EXECUTION_MODE, persistence: Boolean(config.DATABASE_URL) }));
 app.get('/api/status', (_req, res) => res.json({ mode: config.EXECUTION_MODE, lastScanAt: engine.lastScanAt, lastError: engine.lastError, candidates: engine.candidates.length, positions: engine.positions.length, paperCashUsd: engine.paper.cashUsd }));
 app.get('/api/candidates', (_req, res) => res.json(engine.candidates));
 app.get('/api/paper-ledger', (_req, res) => res.json({ cashUsd: engine.paper.cashUsd, positions: engine.positions, fills: engine.paper.fills }));

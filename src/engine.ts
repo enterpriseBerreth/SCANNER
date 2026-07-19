@@ -1,9 +1,11 @@
 import { config } from './config.js';
-import { latestSolanaPairs } from './dexscreener.js';
+import { latestSolanaPairs, solUsdPrice } from './dexscreener.js';
+import { recentPriorityFeeLamports } from './fees.js';
 import { notify, notifyDailyReport, notifyTrade } from './notifier.js';
 import { PaperBroker } from './paper.js';
 import { StateStore, type StoredState } from './store.js';
 import { assess } from './scoring.js';
+import { inspectToken } from './risk.js';
 import type { Candidate, Position } from './types.js';
 
 export class ScannerEngine {
@@ -19,7 +21,8 @@ export class ScannerEngine {
   private equity(pairs: { baseToken: { address: string }; priceUsd?: string }[]) { return this.paper.cashUsd + this.positions.reduce((total, position) => total + position.tokenAmount * (Number(pairs.find(pair => pair.baseToken.address === position.token)?.priceUsd) || position.entryPrice), 0); }
   private async reportIfDue(pairs: { baseToken: { address: string }; priceUsd?: string }[]) {
     const local = this.localTime(); if (!this.dailyStartingCapital.has(local.date)) { this.dailyStartingCapital.set(local.date, this.equity(pairs)); this.markDirty(); }
-    if (local.hour !== config.DAILY_REPORT_HOUR || this.lastDailyReportDate === local.date) return;
+    // If Railway was down at 20:00, recover and send the missed report on the next scan that day.
+    if (local.hour < config.DAILY_REPORT_HOUR || this.lastDailyReportDate === local.date) return;
     const todaysFills = this.paper.fills.filter(fill => this.localTime(new Date(fill.at)).date === local.date);
     const sales = todaysFills.filter(fill => fill.side === 'SELL');
     const wins = sales.filter(fill => (fill.realizedPnlUsd ?? 0) > 0).length, losses = sales.filter(fill => (fill.realizedPnlUsd ?? 0) < 0).length;
@@ -31,9 +34,12 @@ export class ScannerEngine {
 
   async scan(): Promise<Candidate[]> {
     try {
-      const pairs = await latestSolanaPairs();
-      this.candidates = pairs.map(pair => assess(pair, { minLiquidity: config.MIN_LIQUIDITY_USD, maxFdvLiquidity: config.MAX_FDV_LIQUIDITY_RATIO }))
-        .filter(candidate => candidate.score >= config.MIN_SCORE).sort((a, b) => b.score - a.score).slice(0, 25);
+      const [pairs, solUsd, priorityFeeLamports] = await Promise.all([latestSolanaPairs(), solUsdPrice(), recentPriorityFeeLamports()]);
+      if (solUsd && Number.isFinite(solUsd)) this.paper.solUsd = solUsd;
+      this.paper.priorityFeeLamports = priorityFeeLamports;
+      const scored = pairs.map(pair => assess(pair, { minLiquidity: config.MIN_LIQUIDITY_USD, maxFdvLiquidity: config.MAX_FDV_LIQUIDITY_RATIO })).filter(candidate => candidate.score >= config.MIN_SCORE);
+      const screened = await Promise.all(scored.map(async candidate => { const security = await inspectToken(candidate.baseToken.address, this.paper.solUsd, config.MAX_POSITION_USD); return { ...candidate, security, riskFlags: [...candidate.riskFlags, ...security.flags] }; }));
+      this.candidates = screened.filter(candidate => !candidate.security?.hardReject).sort((a, b) => b.score - a.score).slice(0, 25);
       this.lastScanAt = new Date().toISOString(); this.lastError = undefined;
       await this.reportIfDue(pairs);
       await this.persist();
@@ -50,7 +56,11 @@ export class ScannerEngine {
   stop() { if (this.timer) clearInterval(this.timer); }
   // 9 position sizing/daily loss cap and 10 automated exits are enforced in paper mode below.
   async openPaperPosition(candidate: Candidate, amountUsd = config.MAX_POSITION_USD): Promise<Position> {
+    if (candidate.score < config.MIN_SCORE || candidate.security?.hardReject) throw new Error('Candidate failed score or hard security filters');
     if (this.positions.some(position => position.token === candidate.baseToken.address)) throw new Error('Position already exists');
+    if (this.positions.length >= config.MAX_OPEN_POSITIONS) throw new Error(`Maximum ${config.MAX_OPEN_POSITIONS} concurrent positions reached`);
+    const todaysLoss = this.paper.fills.filter(fill => fill.side === 'SELL' && this.localTime(new Date(fill.at)).date === this.localTime().date).reduce((sum, fill) => sum + Math.min(0, fill.realizedPnlUsd ?? 0), 0);
+    if (todaysLoss <= -config.MAX_DAILY_LOSS_USD) throw new Error('Daily loss circuit breaker is active');
     const position = this.paper.buy(candidate.baseToken.address, candidate.baseToken.symbol, Number(candidate.priceUsd), amountUsd, candidate.url);
     this.positions.push(position); this.markDirty(); await this.persist(); await notifyTrade(this.paper.fills[0], position); return position;
   }

@@ -16,3 +16,9 @@ export async function latestSolanaPairs(): Promise<Pair[]> {
   const results = await Promise.all(batches.map(batch => getJson<Pair[]>(`/tokens/v1/solana/${batch.join(',')}`)));
   return results.flat().filter(pair => pair.chainId === 'solana' && pair.quoteToken?.symbol === 'SOL');
 }
+
+export async function solUsdPrice(): Promise<number | undefined> {
+  const pairs = await getJson<Pair[]>('/tokens/v1/solana/So11111111111111111111111111111111111111112');
+  const best = pairs.filter(pair => Number(pair.priceUsd) > 0).sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0))[0];
+  return best ? Number(best.priceUsd) : undefined;
+}

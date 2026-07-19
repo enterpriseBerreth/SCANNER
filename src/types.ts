@@ -9,6 +9,7 @@ export type Pair = {
   info?: { websites?: unknown[]; socials?: unknown[] }; boosts?: { active?: number };
 };
 
-export type Candidate = Pair & { score: number; reasons: string[]; riskFlags: string[] };
+export type SecurityResult = { hardReject: boolean; flags: string[]; topHolderPercent?: number; mintAuthorityPresent?: boolean; freezeAuthorityPresent?: boolean; tokenProgram?: string; quotePriceImpactPercent?: number };
+export type Candidate = Pair & { score: number; reasons: string[]; riskFlags: string[]; security?: SecurityResult };
 export type Position = { token: string; symbol: string; entryPrice: number; highPrice: number; amountUsd: number; tokenAmount: number; openedAt: number; pairUrl: string; entryFeesUsd: number };
 export type PaperFill = { id: string; side: 'BUY' | 'SELL'; token: string; symbol: string; price: number; tokenAmount: number; grossUsd: number; dexFeeUsd: number; networkFeeUsd: number; slippageBps: number; totalFeesUsd: number; realizedPnlUsd?: number; reason?: string; at: string };
