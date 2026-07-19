@@ -19,7 +19,7 @@ export class ScannerEngine {
   private async persist() { if (!this.stateDirty) return; const state: StoredState = { cashUsd: this.paper.cashUsd, fills: this.paper.fills, positions: this.positions, dailyStartingCapital: [...this.dailyStartingCapital], lastDailyReportDate: this.lastDailyReportDate }; await this.store.save(state); this.stateDirty = false; }
 
   private localTime(value = new Date()) { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: config.DAILY_REPORT_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(value); const get = (type: string) => parts.find(part => part.type === type)?.value!; return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) }; }
-  private equity(pairs: { baseToken: { address: string }; priceUsd?: string }[]) { return this.paper.cashUsd + this.positions.reduce((total, position) => total + position.tokenAmount * (Number(pairs.find(pair => pair.baseToken.address === position.token)?.priceUsd) || position.entryPrice), 0); }
+  private equity(pairs: { baseToken: { address: string }; priceUsd?: string }[]) { return this.paper.cashUsd + this.positions.reduce((total, position) => total + (position.exitBlockedAt ? 0 : position.tokenAmount * (Number(pairs.find(pair => pair.baseToken.address === position.token)?.priceUsd) || position.entryPrice)), 0); }
   private async reportIfDue(pairs: { baseToken: { address: string }; priceUsd?: string }[]) {
     const local = this.localTime(); if (!this.dailyStartingCapital.has(local.date)) { this.dailyStartingCapital.set(local.date, this.equity(pairs)); this.markDirty(); }
     // If Railway was down at 20:00, recover and send the missed report on the next scan that day.
@@ -46,7 +46,7 @@ export class ScannerEngine {
       await this.persist();
       for (const position of [...this.positions]) {
         const pair = pairs.find(item => item.baseToken.address === position.token); const price = Number(pair?.priceUsd);
-        if (Number.isFinite(price) && price > 0) { const exit = this.evaluateExit(position, price); if (exit && !position.exitBlockedAt) await this.closePaperPosition(position, exit); }
+        if (Number.isFinite(price) && price > 0) { const high = position.highPrice; const exit = this.evaluateExit(position, price); if (position.highPrice !== high) this.markDirty(); if (exit && !position.exitBlockedAt) await this.closePaperPosition(position, exit); }
       }
       for (const candidate of this.candidates) this.alerted.add(candidate.pairAddress);
       if (config.AUTO_PAPER_TRADE) {
