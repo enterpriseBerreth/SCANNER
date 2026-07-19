@@ -27,3 +27,16 @@ export async function notifyTrade(fill: PaperFill, position?: Position): Promise
   ].join('\n');
   await send(message);
 }
+
+export async function notifyDailyReport(report: { date: string; trades: number; wins: number; losses: number; startingCapital: number; endingCapital: number; pnl: number; fees: number; tips: string[] }): Promise<void> {
+  const pnlPct = report.startingCapital ? report.pnl / report.startingCapital * 100 : 0;
+  const message = [
+    `SCANNER DAILY PAPER REPORT · ${report.date}`,
+    `Trades: ${report.trades} · Profitable: ${report.wins} · Lost: ${report.losses}`,
+    `Capital: $${report.startingCapital.toFixed(2)} → $${report.endingCapital.toFixed(2)}`,
+    `PNL: ${report.pnl >= 0 ? '+' : ''}$${report.pnl.toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`,
+    `Simulated fees: $${report.fees.toFixed(2)}`,
+    'Optimization review:', ...report.tips.map(tip => `• ${tip}`)
+  ].join('\n');
+  await send(message);
+}

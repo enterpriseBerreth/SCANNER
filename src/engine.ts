@@ -1,6 +1,6 @@
 import { config } from './config.js';
 import { latestSolanaPairs } from './dexscreener.js';
-import { notify, notifyTrade } from './notifier.js';
+import { notify, notifyDailyReport, notifyTrade } from './notifier.js';
 import { PaperBroker } from './paper.js';
 import { assess } from './scoring.js';
 import type { Candidate, Position } from './types.js';
@@ -8,7 +8,21 @@ import type { Candidate, Position } from './types.js';
 export class ScannerEngine {
   candidates: Candidate[] = []; positions: Position[] = []; lastScanAt?: string; lastError?: string;
   paper = new PaperBroker();
-  private alerted = new Set<string>(); private timer?: NodeJS.Timeout;
+  private alerted = new Set<string>(); private timer?: NodeJS.Timeout; private dailyStartingCapital = new Map<string, number>(); private lastDailyReportDate?: string;
+
+  private localTime(value = new Date()) { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: config.DAILY_REPORT_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(value); const get = (type: string) => parts.find(part => part.type === type)?.value!; return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) }; }
+  private equity(pairs: { baseToken: { address: string }; priceUsd?: string }[]) { return this.paper.cashUsd + this.positions.reduce((total, position) => total + position.tokenAmount * (Number(pairs.find(pair => pair.baseToken.address === position.token)?.priceUsd) || position.entryPrice), 0); }
+  private async reportIfDue(pairs: { baseToken: { address: string }; priceUsd?: string }[]) {
+    const local = this.localTime(); if (!this.dailyStartingCapital.has(local.date)) this.dailyStartingCapital.set(local.date, this.equity(pairs));
+    if (local.hour !== config.DAILY_REPORT_HOUR || this.lastDailyReportDate === local.date) return;
+    const todaysFills = this.paper.fills.filter(fill => this.localTime(new Date(fill.at)).date === local.date);
+    const sales = todaysFills.filter(fill => fill.side === 'SELL');
+    const wins = sales.filter(fill => (fill.realizedPnlUsd ?? 0) > 0).length, losses = sales.filter(fill => (fill.realizedPnlUsd ?? 0) < 0).length;
+    const fees = todaysFills.reduce((total, fill) => total + fill.totalFeesUsd, 0);
+    const startingCapital = this.dailyStartingCapital.get(local.date)!, endingCapital = this.equity(pairs), pnl = endingCapital - startingCapital;
+    const tips = [sales.length === 0 ? 'No closed trades today: preserve selectivity; do not force entries.' : wins / sales.length < .45 ? 'Win rate is below 45%: raise MIN_SCORE or tighten buy-flow and liquidity filters.' : 'Maintain the current selectivity; review each exit against the rule that triggered it.', fees > Math.max(1, Math.abs(pnl) * .25) ? 'Fees are a large share of P&L: reduce churn, re-check priority-fee assumptions, and avoid very small orders.' : 'Keep position size capped and preserve hard-stop and time-stop discipline.', this.positions.length ? 'Open-position value is included in ending capital; unrealized P&L is not counted as a winning trade until sold.' : 'Closed-trade statistics exclude unrealized P&L.' ];
+    await notifyDailyReport({ date: local.date, trades: sales.length, wins, losses, startingCapital, endingCapital, pnl, fees, tips }); this.lastDailyReportDate = local.date;
+  }
 
   async scan(): Promise<Candidate[]> {
     try {
@@ -16,6 +30,7 @@ export class ScannerEngine {
       this.candidates = pairs.map(pair => assess(pair, { minLiquidity: config.MIN_LIQUIDITY_USD, maxFdvLiquidity: config.MAX_FDV_LIQUIDITY_RATIO }))
         .filter(candidate => candidate.score >= config.MIN_SCORE).sort((a, b) => b.score - a.score).slice(0, 25);
       this.lastScanAt = new Date().toISOString(); this.lastError = undefined;
+      await this.reportIfDue(pairs);
       for (const position of [...this.positions]) {
         const pair = pairs.find(item => item.baseToken.address === position.token); const price = Number(pair?.priceUsd);
         if (Number.isFinite(price) && price > 0) { const exit = this.evaluateExit(position, price); if (exit) this.closePaperPosition(position, price, exit); }

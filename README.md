@@ -29,6 +29,10 @@ The scanner also deduplicates alerts and exposes its decisions (score, reasons, 
 
 Default costs are deliberately visible in `.env.example`: 30 bps DEX fee, 100 bps per-side slippage, a 5,000-lamport base fee, and a 100,000-lamport priority-fee assumption. The base fee and priority-fee structure follows [Solana's official fee documentation](https://solana.com/docs/core/fees/fee-structure); actual route, compute, and congestion costs vary, so set the values to your intended route and conditions. These are simulated fills—no signed transactions are submitted.
 
+## Daily Telegram report
+
+At 8:00 PM `America/Denver` time (which follows Mountain daylight/standard time automatically), SCANNER sends a report of closed trades, wins/losses, starting/ending paper equity, P&L, P&L percentage, simulated fees, and data-driven risk-control tips. Open positions are marked-to-market in ending capital but are not counted as winning or losing trades until closed.
+
 ## Quick start
 
 ```bash
