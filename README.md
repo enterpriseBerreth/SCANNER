@@ -37,7 +37,7 @@ At 8:00 PM `America/Denver` time (which follows Mountain daylight/standard time 
 
 ## Execution and security controls
 
-SCANNER now requires a 72+ score *and* passes hard on-chain checks: no active mint/freeze authority, a standard SPL token program, top-holder concentration at or below the configured maximum, non-zero supply, and a viable aggregator quote below the configured impact cap. It fails closed when validation is unavailable. Post endpoints accept a bearer token when `CONTROL_API_KEY` is configured. Daily-loss and maximum-concurrent-position circuit breakers are enforced in paper mode.
+The current paper-data profile requires a 60+ score and looser liquidity, valuation, holder-concentration, and route-impact thresholds. It still requires hard on-chain checks: no active mint/freeze authority, a standard SPL token program, non-zero supply, and a viable buy and sell route. It fails closed when validation is unavailable. Post endpoints accept a bearer token when `CONTROL_API_KEY` is configured. Daily-loss and maximum-concurrent-position circuit breakers are enforced in paper mode.
 
 `AUTO_PAPER_TRADE=true` is enabled by default: a token that passes all of the above receives one bounded paper entry, up to `MAX_OPEN_POSITIONS`. It never re-enters the same token, and it never signs or broadcasts a blockchain transaction.
 
